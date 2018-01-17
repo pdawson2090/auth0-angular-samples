@@ -1,0 +1,48 @@
+## CircleCI Config with Docker Images
+
+version: 2
+jobs:
+  # Name of the job
+  build:
+    docker:
+      #- image:  # Primary container
+      - image: lbalmaceda/casperqs:0.0.1
+        environment:
+          IMG_TAG: example #$CIRCLE_PROJECT_REPONAME
+    steps:
+      ## Steps of the job
+      - checkout
+      - run:
+          # This could be our own script receiving the 2 values and the fullpath
+          name: Replace Auth0 test credentials
+          command: |
+            mv $AUTH0_CFG.example $AUTH0_CFG
+            sed -i 's/{CLIENT_ID}/$AUTH0_TEST_CLIENT_ID/g' $AUTH0_CFG
+            sed -i 's/{DOMAIN}/$AUTH0_TEST_DOMAIN/g' $AUTH0_CFG
+          environment:
+            AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts
+      - setup_remote_docker
+      - run:
+          name: Build PR Docker image
+          command: |
+            docker build -t $IMG_TAG 01-Login/.
+      - run:
+          name: Run PR Docker image
+          command: |
+            docker run -d --name $IMG_TAG -p 3000:3000 $IMG_TAG
+      - run:
+          name: Wait for app to be available
+          command: |
+            waiter localhost:3000 300
+      - run:
+          name: Run CasperJS tests
+          command: |
+            casperjs test webapp-tests.js --fail-fast --xunit=/tmp/junit/test-results.xml --initial-url=http://localhost:3000
+      # - run:
+      #     name: Stop PR Docker image
+      #     command: |
+      #       docker stop $(docker ps -q --filter ancestor=$IMG_TAG)
+      - store_test_results:
+          path: /tmp/junit
+      - store_artifacts:
+          path: ./screenshots

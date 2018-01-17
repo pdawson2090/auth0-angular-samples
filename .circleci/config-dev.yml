@@ -1,0 +1,34 @@
+version: 2
+jobs:
+  # Name of the job
+  build:
+    docker:
+      - image: circleci/node # Primary container
+    steps:
+      ## Steps of the job
+      - checkout
+      - run:
+          name: Replace Auth0 test credentials
+          command: |
+            mv 01-Login/src/app/auth/auth0-variables.ts.example 01-Login/src/app/auth/auth0-variables.ts
+            sed -i 's/{CLIENT_ID}/$AUTH0_TEST_CLIENT_ID/g' 01-Login/src/app/auth/auth0-variables.ts
+            sed -i 's/{DOMAIN}/$AUTH0_TEST_DOMAIN/g' 01-Login/src/app/auth/auth0-variables.ts
+      
+      - run:
+          name: Install Docker Compose
+          command: |
+            curl -L https://github.com/docker/compose/releases/download/1.11.2/docker-compose-`uname -s`-`uname -m` > ~/docker-compose
+            chmod +x ~/docker-compose
+            sudo mv ~/docker-compose /usr/local/bin/docker-compose
+      - setup_remote_docker
+      - run:
+          name: Prepare Docker Compose
+          command: |
+            mkdir sample
+            mv ./01-Login/* ./sample
+            wget -O "docker-compose.yml" https://gist.githubusercontent.com/lbalmaceda/3cef267b6bed563d5009a1ca851bac87/raw/de4bc72fe693ebaa2dd5cdc8461f3168058b0b1c/webapp-compose.js
+            wget -O "Dockerfile" https://gist.githubusercontent.com/lbalmaceda/3cef267b6bed563d5009a1ca851bac87/raw/9ff5731805a07cc5fc55d0c1e594adff0c97fec1/webapp-dockerfile
+      - run:
+          name: Run Docker Compose
+          command: |
+            docker-compose up --abort-on-container-exit
