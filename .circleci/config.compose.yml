@@ -1,0 +1,30 @@
+## CircleCI Config with Docker Compose
+
+version: 2
+jobs:
+  # Name of the job
+  build:
+    docker:
+      - image: lbalmaceda/nodeqs:0.0.1 # Primary container
+    steps:
+      ## Steps of the job
+      - checkout
+      - run:
+          name: Replace Auth0 test credentials
+          command: |
+            mv $AUTH0_CFG.example $AUTH0_CFG
+            sed -i 's/{CLIENT_ID}/$AUTH0_TEST_CLIENT_ID/g' $AUTH0_CFG
+            sed -i 's/{DOMAIN}/$AUTH0_TEST_DOMAIN/g' $AUTH0_CFG
+          environment:
+            AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts ## This should be parametrized
+      - run:
+          name: Copy sample to Compose Directory
+          command: |
+            mkdir -p /home/circleci/sample
+            mv ./01-Login/* /home/circleci/sample
+      - setup_remote_docker
+      - run:
+          name: Run Docker Compose
+          command: |
+            docker-compose up --abort-on-container-exit --exit-code-from casper
+          working_directory: /home/circleci
