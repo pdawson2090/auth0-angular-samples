@@ -1,0 +1,51 @@
+## CircleCI Config with Docker Compose
+
+version: 2
+jobs:
+  # Name of the job
+  build:
+    docker:
+      - image: lbalmaceda/nodeqs:0.0.1 # Primary container
+    steps:
+      ## Steps of the job
+      - checkout
+      - run:
+          name: Replace Auth0 test credentials
+          command: |
+            mv $AUTH0_CFG.example $AUTH0_CFG
+            sed -i "s/{CLIENT_ID}/$AUTH0_TEST_CLIENT_ID/g" $AUTH0_CFG
+            sed -i "s/{DOMAIN}/$AUTH0_TEST_DOMAIN/g" $AUTH0_CFG
+          environment:
+            AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts ## This should be parametrized
+      - run:
+          name: Copy sample to Compose Directory
+          command: |
+            cp -r ./01-Login/. ~/sample
+      - setup_remote_docker
+      - run:
+          name: Prepare Docker Compose
+          command: |
+            # Prepare the compose services
+            docker-compose up -d
+            # Copy tests to the CasperJS home directory
+            docker cp ~/tests/. "$(docker-compose ps -q casper)":/home/casperjs-tests/
+          working_directory: /home/circleci
+      - run:
+          name: Run tests
+          command: |
+            # Run tests
+            docker-compose exec casper casperjs test --initial-url="http://app:3000" --xunit=log.xml webapp-tests.js
+          working_directory: /home/circleci
+      - run:
+          name: Save test results
+          command: |
+            # Prepare the compose 
+            mkdir -p out/xunit
+            docker cp "$(docker-compose ps -q casper)":/home/casperjs-tests/log.xml ~/out/xunit/log.xml
+            docker cp "$(docker-compose ps -q casper)":/home/casperjs-tests/screenshots/ ~/out/
+          when: always
+          working_directory: /home/circleci
+      - store_test_results:
+          path: ~/out/xunit/log.xml
+      - store_artifacts:
+          path: ~/out/screenshots
