@@ -16,7 +16,7 @@ jobs:
             sed -i "s/{CLIENT_ID}/$AUTH0_TEST_CLIENT_ID/g" $AUTH0_CFG
             sed -i "s/{DOMAIN}/$AUTH0_TEST_DOMAIN/g" $AUTH0_CFG
           environment:
-            AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts ## This should be parametrized
+            AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts ## This file path should be parametrized
       - run:
           name: Copy sample to Compose Directory
           command: |
@@ -28,24 +28,21 @@ jobs:
             # Prepare the compose services
             docker-compose up -d
             # Copy tests to the CasperJS home directory
-            docker cp ~/tests/. "$(docker-compose ps -q casper)":/home/casperjs-tests/
+            docker cp ~/tests/. "$(docker-compose ps -q tester)":/home/tests/
           working_directory: /home/circleci
       - run:
           name: Run tests
           command: |
             # Run tests
-            docker-compose exec casper casperjs test --initial-url="http://app:3000" --xunit=log.xml webapp-tests.js
+            docker-compose exec tester node webapp.js
           working_directory: /home/circleci
       - run:
           name: Save test results
           command: |
             # Prepare the compose 
-            mkdir -p out/xunit
-            docker cp "$(docker-compose ps -q casper)":/home/casperjs-tests/log.xml ~/out/xunit/log.xml
-            docker cp "$(docker-compose ps -q casper)":/home/casperjs-tests/screenshots/ ~/out/
+            mkdir -p out
+            docker cp "$(docker-compose ps -q tester)":/home/tests/out/ ~/out/
           when: always
           working_directory: /home/circleci
-      - store_test_results:
-          path: ~/out/xunit/log.xml
       - store_artifacts:
           path: ~/out/screenshots
