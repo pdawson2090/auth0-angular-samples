@@ -1,48 +1,74 @@
-## CircleCI Config with Docker Compose
+## CircleCI Config with Docker Images
+# Environment variables to be defined in the build configuration:
+# AUTH0_TEST_CLIENT_ID = Client id to use in test
+# AUTH0_TEST_DOMAIN = Domain to use in test
 
 version: 2
 jobs:
-  # Name of the job
   build:
     docker:
-      - image: lbalmaceda/nodeqs:0.0.1 # Primary container
+      - image: circleci/node:8.10-stretch-browsers
+    environment:
+      - WEBAPP_URL: http://localhost:3000
+    
     steps:
-      ## Steps of the job
       - checkout
+      # Depending on the project, the sample in-test might be in a subfolder.
+      # This probably changes on each sample
+
       - run:
+          # This could be our own script receiving the 2 values and the fullpath
           name: Replace Auth0 test credentials
           command: |
             mv $AUTH0_CFG.example $AUTH0_CFG
-            sed -i "s/{CLIENT_ID}/$AUTH0_TEST_CLIENT_ID/g" $AUTH0_CFG
-            sed -i "s/{DOMAIN}/$AUTH0_TEST_DOMAIN/g" $AUTH0_CFG
+            sed -i 's/{CLIENT_ID}/$(eval echo $AUTH0_TEST_CLIENT_ID)/g' $AUTH0_CFG
+            sed -i 's/{DOMAIN}/$(eval echo $AUTH0_TEST_DOMAIN)/g' $AUTH0_CFG
+            cat $(eval echo $AUTHO_CFG) && echo Done!
           environment:
-            AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts ## This file path should be parametrized
+            - AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts # Find a universal way to search for it
+      
+      # Image is official from CircleCI -> Contains Docker binaries
+      ### - setup_remote_docker
+
+      ### - run:
+      ###     name: Build and run pull request
+      ###     command: docker build -t sample-img 01-Login/. # This path will change from sample to sample
+      ### - run: docker run -d --name sample -p 3000:3000 sample-img
+
+
+      # Get from app/cache
       - run:
-          name: Copy sample to Compose Directory
-          command: |
-            cp -r ./01-Login/. ~/sample
-      - setup_remote_docker
+          name: Build pull request
+          command: npm install
+          working_directory: 01-Login
+      # Save to app/cache
       - run:
-          name: Prepare Docker Compose
+          name: Run pull request
+          command: npm start
+          background: true
+          working_directory: 01-Login
+
+      - run:
+          name: Wait for app to be available
+          command: sleep 10 ; curl --retry 7 --retry-connrefused http://localhost:3000 
+          # --retry-connrefused option is available on later curl versions
+
+      # Get from test/cache
+      - run:
+          name: Prepare tests
           command: |
-            # Prepare the compose services
-            docker-compose up -d
-            # Copy tests to the CasperJS home directory
-            docker cp ~/tests/. "$(docker-compose ps -q tester)":/home/tests/
-          working_directory: /home/circleci
+            git clone https://github.com/lbalmaceda/webapp-tests-scripts scripts
+            cd scripts
+            npm install
+      # Save to test/cache
       - run:
           name: Run tests
-          command: |
-            # Run tests
-            docker-compose exec tester node webapp.js
-          working_directory: /home/circleci
-      - run:
-          name: Save test results
-          command: |
-            # Prepare the compose 
-            mkdir -p out
-            docker cp "$(docker-compose ps -q tester)":/home/tests/out/ ~/out/
-          when: always
-          working_directory: /home/circleci
+          command: node scripts/test.js
+
+      # - run:
+      #     name: Stop PR Docker image
+      #     command: docker stop $(docker ps -q --filter ancestor=$IMG_TAG)
+      - store_test_results:
+          path: /tmp/junit
       - store_artifacts:
-          path: ~/out/screenshots
+          path: scripts/out
