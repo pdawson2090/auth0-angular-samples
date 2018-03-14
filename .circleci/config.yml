@@ -12,36 +12,32 @@ jobs:
       - WEBAPP_URL: http://localhost:3000
     
     steps:
-      - checkout
       # Depending on the project, the sample in-test might be in a subfolder.
-      # This probably changes on each sample
+      - checkout
 
       - run:
           # This could be our own script receiving the 2 values and the fullpath
           name: Replace Auth0 test credentials
           command: |
             mv $AUTH0_CFG.example $AUTH0_CFG
-            sed -i 's/{CLIENT_ID}/$(eval echo $AUTH0_TEST_CLIENT_ID)/g' $AUTH0_CFG
-            sed -i 's/{DOMAIN}/$(eval echo $AUTH0_TEST_DOMAIN)/g' $AUTH0_CFG
-            cat $(eval echo $AUTHO_CFG) && echo Done!
+            sed -i 's/{CLIENT_ID}/'$AUTH0_TEST_CLIENT_ID'/g' $AUTH0_CFG
+            sed -i 's/{DOMAIN}/'$AUTH0_TEST_DOMAIN'/g' $AUTH0_CFG
           environment:
             - AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts # Find a universal way to search for it
-      
-      # Image is official from CircleCI -> Contains Docker binaries
-      ### - setup_remote_docker
-
-      ### - run:
-      ###     name: Build and run pull request
-      ###     command: docker build -t sample-img 01-Login/. # This path will change from sample to sample
-      ### - run: docker run -d --name sample -p 3000:3000 sample-img
-
 
       # Get from app/cache
+      - restore_cache:
+         keys:
+           - app-{{ checksum "01-Login/package.json" }}
       - run:
           name: Build pull request
           command: npm install
           working_directory: 01-Login
       # Save to app/cache
+      - save_cache:
+          key: app-{{ checksum "01-Login/package.json" }}
+          paths:
+            - "01-Login/node_modules"
       - run:
           name: Run pull request
           command: npm start
@@ -51,24 +47,26 @@ jobs:
       - run:
           name: Wait for app to be available
           command: sleep 10 ; curl --retry 7 --retry-connrefused http://localhost:3000 
-          # --retry-connrefused option is available on later curl versions
 
       # Get from test/cache
       - run:
           name: Prepare tests
-          command: |
-            git clone https://github.com/lbalmaceda/webapp-tests-scripts scripts
-            cd scripts
-            npm install
+          command: git clone https://github.com/lbalmaceda/webapp-tests-scripts scripts
+      - restore_cache:
+         keys:
+           - test-{{ checksum "scripts/package.json" }}
+      - run:
+          command: npm install && mkdir out
+          working_directory: scripts
       # Save to test/cache
+      - save_cache:
+          key: test-{{ checksum "scripts/package.json" }}
+          paths:
+            - "scripts/node_modules"
       - run:
           name: Run tests
-          command: node scripts/test.js
+          command: node test.js
+          working_directory: scripts
 
-      # - run:
-      #     name: Stop PR Docker image
-      #     command: docker stop $(docker ps -q --filter ancestor=$IMG_TAG)
-      - store_test_results:
-          path: /tmp/junit
       - store_artifacts:
           path: scripts/out
