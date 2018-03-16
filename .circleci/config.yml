@@ -6,8 +6,9 @@
 version: 2
 jobs:
   build:
-    docker:
-      - image: circleci/node:8.10-stretch-browsers
+    machine: true
+      # - image: circleci/node:8.10
+      # - image: appropriate/curl
     environment:
       - WEBAPP_URL: http://localhost:3000
     
@@ -25,47 +26,32 @@ jobs:
           environment:
             - AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts # Find a universal way to search for it
 
-      # Get from app/cache
-      - restore_cache:
-         keys:
-           - app-{{ checksum "01-Login/package.json" }}
-      - run:
-          name: Build pull request
-          command: npm install
-          working_directory: 01-Login
-      # Save to app/cache
-      - save_cache:
-          key: app-{{ checksum "01-Login/package.json" }}
-          paths:
-            - "01-Login/node_modules"
+      # - setup_remote_docker
+
       - run:
           name: Run pull request
-          command: npm start
-          background: true
+          command: |
+            docker build -t sample .
+            docker run --network host -d -p 3000:3000 sample
           working_directory: 01-Login
 
       - run:
           name: Wait for app to be available
-          command: sleep 10 ; curl --retry 7 --retry-connrefused http://localhost:3000 
+          command: |
+            sleep 10
+            docker run --network host --rm appropriate/curl --retry 10 --retry-connrefused -v $WEBAPP_URL
 
-      # Get from test/cache
       - run:
           name: Prepare tests
           command: git clone https://github.com/lbalmaceda/webapp-tests-scripts scripts
-      - restore_cache:
-         keys:
-           - test-{{ checksum "scripts/package.json" }}
-      - run:
-          command: npm install && mkdir out
-          working_directory: scripts
-      # Save to test/cache
-      - save_cache:
-          key: test-{{ checksum "scripts/package.json" }}
-          paths:
-            - "scripts/node_modules"
-      - run:
+
+      - run: 
           name: Run tests
-          command: node test.js
+          command: |
+            docker create --network host --shm-size 1G --name tester alekzonder/puppeteer:latest
+            docker cp $(pwd)/test.js tester:/app/index.js
+            docker start -i tester
+            docker cp tester:/app/out/ $(pwd)/out
           working_directory: scripts
 
       - store_artifacts:
