@@ -1,0 +1,50 @@
+## CircleCI Config with Docker Images
+# Environment variables to be defined in the build configuration:
+# AUTH0_TEST_CLIENT_ID = Client id to use in test
+# AUTH0_TEST_DOMAIN = Domain to use in test
+
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/node:8.10
+    environment:
+      - WEBAPP_URL: http://localhost:3000
+    
+    steps:
+      # Depending on the project, the sample in-test might be in a subfolder.
+      - checkout
+
+      - run:
+          # This could be our own script receiving the 2 values and the fullpath
+          name: Replace Auth0 test credentials
+          command: |
+            mv $AUTH0_CFG.example $AUTH0_CFG
+            sed -i 's/{CLIENT_ID}/'$AUTH0_TEST_CLIENT_ID'/g' $AUTH0_CFG
+            sed -i 's/{DOMAIN}/'$AUTH0_TEST_DOMAIN'/g' $AUTH0_CFG
+          environment:
+            - AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts # Find a universal way to search for it
+
+      - setup_remote_docker
+
+      - run:
+          name: Get test scripts
+          command: |
+            git clone https://github.com/lbalmaceda/webapp-tests-scripts scripts
+            mv scripts/* . && rm -rf scripts
+            mv 01-Login sample  # Find a universal way to set it
+      
+      - run:
+          name: Prepare compose app
+          command: |
+            docker-compose up --build --no-start
+            docker cp $(pwd)/test.js "$(docker-compose ps -q tester)":/app/index.js
+
+      - run:
+          name: Run tests
+          command: |
+            docker start -i "$(docker-compose ps -q tester)"
+            docker cp "$(docker-compose ps -q tester)":/app/out/ $(pwd)/out
+
+      - store_artifacts:
+          path: out
