@@ -7,8 +7,6 @@ version: 2
 jobs:
   build:
     machine: true
-      # - image: circleci/node:8.10
-      # - image: appropriate/curl
     environment:
       - WEBAPP_URL: http://localhost:3000
     
@@ -25,8 +23,6 @@ jobs:
             sed -i 's/{DOMAIN}/'$AUTH0_TEST_DOMAIN'/g' $AUTH0_CFG
           environment:
             - AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts # Find a universal way to search for it
-
-      # - setup_remote_docker
 
       - run:
           name: Run pull request

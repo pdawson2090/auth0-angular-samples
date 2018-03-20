@@ -56,7 +56,7 @@ jobs:
          keys:
            - test-{{ checksum "scripts/package.json" }}
       - run:
-          command: npm install && mkdir out
+          command: npm install
           working_directory: scripts
       # Save to test/cache
       - save_cache:
