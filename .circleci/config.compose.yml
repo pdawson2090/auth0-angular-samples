@@ -1,4 +1,4 @@
-## CircleCI Config with Machine Executor and Docker Images
+## CircleCI Config with Docker Executor and Docker Compose
 # Environment variables to be defined in the build configuration:
 # AUTH0_TEST_CLIENT_ID = Client id to use in test
 # AUTH0_TEST_DOMAIN = Domain to use in test
@@ -6,7 +6,8 @@
 version: 2
 jobs:
   build:
-    machine: true
+    docker:
+      - image: circleci/node:8.10
     environment:
       - WEBAPP_URL: http://localhost:3000
     
@@ -24,32 +25,27 @@ jobs:
           environment:
             - AUTH0_CFG: 01-Login/src/app/auth/auth0-variables.ts # Find a universal way to search for it
 
+      - setup_remote_docker
+
       - run:
-          name: Run pull request
+          name: Get test scripts
           command: |
-            docker build -t sample .
-            docker run --network host -d -p 3000:3000 sample
-          working_directory: 01-Login
-
+            git clone https://github.com/lbalmaceda/webapp-tests-scripts scripts
+            mv scripts/* . && rm -rf scripts
+            mv 01-Login sample  # Find a universal way to set it
+      
       - run:
-          name: Wait for app to be available
+          name: Prepare compose app
           command: |
-            sleep 10
-            docker run --network host --rm appropriate/curl --retry 10 --retry-connrefused -v $WEBAPP_URL
+            docker-compose up --build --no-start
+            docker cp $(pwd)/lock_login_test.js "$(docker-compose ps -q tester)":/tests/lock_login_test.js
+            docker cp $(pwd)/codecept.conf.js "$(docker-compose ps -q tester)":/tests/codecept.conf.js
 
       - run:
-          name: Prepare tests
-          command: git clone https://github.com/lbalmaceda/webapp-tests-scripts scripts
-
-      - run: 
           name: Run tests
           command: |
-            docker create --network host --name tester codeception/codeceptjs run --steps
-            docker cp $(pwd)/lock_login_test.js tester:/tests/lock_login_test.js
-            docker cp $(pwd)/codecept.conf.js tester:/tests/codecept.conf.js
-            docker start -i tester
-            docker cp tester:/tests/out/ $(pwd)/out
-          working_directory: scripts
+            docker start -i "$(docker-compose ps -q tester)"
+            docker cp "$(docker-compose ps -q tester)":/tests/out/ $(pwd)/out
 
       - store_artifacts:
-          path: scripts/out
+          path: out
