@@ -65,7 +65,7 @@ jobs:
             - "scripts/node_modules"
       - run:
           name: Run tests
-          command: node test.js
+          command: ./node_modules/.bin/codeceptjs run --steps
           working_directory: scripts
 
       - store_artifacts:

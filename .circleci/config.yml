@@ -38,13 +38,14 @@ jobs:
           name: Prepare compose app
           command: |
             docker-compose up --build --no-start
-            docker cp $(pwd)/test.js "$(docker-compose ps -q tester)":/app/index.js
+            docker cp $(pwd)/lock_login_test.js "$(docker-compose ps -q tester)":/tests/lock_login_test.js
+            docker cp $(pwd)/codecept.conf.js "$(docker-compose ps -q tester)":/tests/codecept.conf.js
 
       - run:
           name: Run tests
           command: |
             docker start -i "$(docker-compose ps -q tester)"
-            docker cp "$(docker-compose ps -q tester)":/app/out/ $(pwd)/out
+            docker cp "$(docker-compose ps -q tester)":/tests/out/ $(pwd)/out
 
       - store_artifacts:
           path: out

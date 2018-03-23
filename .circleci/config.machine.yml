@@ -44,10 +44,11 @@ jobs:
       - run: 
           name: Run tests
           command: |
-            docker create --network host --shm-size 1G --name tester alekzonder/puppeteer:latest
-            docker cp $(pwd)/test.js tester:/app/index.js
+            docker create --network host --name tester codeception/codeceptjs run --steps
+            docker cp $(pwd)/lock_login_test.js tester:/tests/lock_login_test.js
+            docker cp $(pwd)/codecept.conf.js tester:/tests/codecept.conf.js
             docker start -i tester
-            docker cp tester:/app/out/ $(pwd)/out
+            docker cp tester:/tests/out/ $(pwd)/out
           working_directory: scripts
 
       - store_artifacts:
